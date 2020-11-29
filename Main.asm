@@ -1,4 +1,5 @@
 ; 10 SYS (2304)
+watch COUNTER
 
 *=$0801
 
@@ -13,8 +14,11 @@ EYE_RIGHT=#$2E00 / 64
 
 PROGRAM_START
 
+
+        ; Initializes the eye sprite
         JSR INITIALIZE_EYE_SPRITE
 
+        ; Sets up the cusom interrupt handler
         JSR SETUP_CUSTOM_INTERRUPT_HANDLER
         
         
@@ -24,6 +28,13 @@ PROGRAM_END
 
 COUNTER BYTE 00
 
+; Sets the interrupt handler to the address for the custom handler
+; Inputs:
+; A: The low byte of the ANIMATION_ROUTINE address
+; A: The high byte of the ANIMATION_ROUTINE address
+; Outputs:
+; 0314: The low byte of the ANIMATION_ROUTINE address
+; 0315: The high byte of the ANIMATION_ROUTINE address
 SETUP_CUSTOM_INTERRUPT_HANDLER
         SEI
         LDA #<ANIMATION_ROUTINE
@@ -33,13 +44,58 @@ SETUP_CUSTOM_INTERRUPT_HANDLER
         CLI
         RTS
 
+; Adds to the counter and calls the subroutine to switch frames
+; Inputs:
+; A: COUNTER
+; Outputs:
+; COUNTER: COUNTER + 1
 ANIMATION_ROUTINE
-        LDX COUNTER
-        INX
-        STX COUNTER
+        LDA COUNTER
+        ADC #1
+        STA COUNTER
+        CMP #0
+        BEQ SHOW_EYE_FRONT
+        CMP #64
+        BEQ SHOW_EYE_LEFT
+        CMP #128
+        BEQ SHOW_EYE_FRONT
+        CMP #192
+        BEQ SHOW_EYE_RIGHT
         JMP $EA31
 
+; Points to the eye front pixel data
+; Inputs:
+; A: #$BA The one byte address for the pixel data
+; Outputs:
+; $07F8: The one byte address for the pixel data
+SHOW_EYE_FRONT
+        LDA EYE_FRONT
+        STA $07F8
+        JMP $EA31
 
+; Points to the eye left pixel data
+; Inputs:
+; A: #$B9 The one byte address for the pixel data
+; Outputs:
+; $07F8: The one byte address for the pixel data
+SHOW_EYE_LEFT
+        LDA EYE_LEFT
+        STA $07F8
+        JMP $EA31
+
+; Points to the eye right pixel data
+; Inputs:
+; A: #$B8 The one byte address for the pixel data
+; Outputs:
+; $07F8: The one byte address for the pixel data
+SHOW_EYE_RIGHT
+        LDA EYE_RIGHT
+        STA $07F8
+        JMP $EA31
+
+; Initializes the eye sprite
+; Inputs: None
+; Outputs: None
 INITIALIZE_EYE_SPRITE
         ; Loads all sprite data
         JSR LOAD_EYE_FRONT_DATA
@@ -47,18 +103,58 @@ INITIALIZE_EYE_SPRITE
         JSR LOAD_EYE_RIGHT_DATA
 
         ; Sets the sprite pointer to the eye front frame
-        LDA EYE_FRONT
-        STA $07F8
+        JSR SET_INITIAL_SPRITE_FRAME
 
         ; sets sprite 0's color to white
-        LDA #1
-        STA $D027
+        JSR SET_SPRITE_COLOR
 
         ; enables sprite 0
-        LDA #1
-        STA $D015
+        JSR SET_SPRITE_VISIBILITY
 
         ; sets sprite 0's location
+        JSR SET_SPRITE_LOCATION
+        RTS
+
+; Sets the sprite to the eye front frame
+; Inputs:
+; A: #$BA
+; Outputs:
+; $07F8: #$BA
+SET_INITIAL_SPRITE_FRAME
+        LDA EYE_FRONT
+        STA $07F8
+        RTS
+
+; Sets the sprite to white
+; Inputs:
+; A: #1
+; Outputs:
+; $D027: #1
+SET_SPRITE_COLOR
+        LDA #1
+        STA $D027
+        RTS
+
+; Sets the visibility of the sprite to on
+; Inputs:
+; A: #1
+; Outputs:
+; $D015: #1
+SET_SPRITE_VISIBILITY
+        LDA #1
+        STA $D015
+        RTS
+
+; Sets the sprite location
+; Inputs:
+; A: #$40 the first part of the x location
+; A: #1 the second part of the x location
+; A: #50 the y location
+; Outputs:
+; $D000: The first part of the x location
+; $D010: The second part of the x location
+; $D001: The y location
+SET_SPRITE_LOCATION
         LDA #$40
         STA $D000
         LDA #1
@@ -67,7 +163,11 @@ INITIALIZE_EYE_SPRITE
         STA $D001
         RTS
 
-
+; Loads the eye front pixel data
+; Inputs:
+; A: each byte from the eye front byte data
+; Outputs:
+; 2E80 - 2EBF: each byte of the eye front byte data. One byte per address
 LOAD_EYE_FRONT_DATA
         LDX #64
         LDY #00 
@@ -79,6 +179,11 @@ copy_eye_front_data_loop
         BNE copy_eye_front_data_loop
         RTS
 
+; Loads the eye left pixel data
+; Inputs:
+; A: each byte from the eye left byte data
+; Outputs:
+; 2E40 - 2E7F: each byte of the eye left byte data. One byte per address
 LOAD_EYE_LEFT_DATA
         LDX #64
         LDY #00 
@@ -90,6 +195,11 @@ copy_eye_left_data_loop
         BNE copy_eye_left_data_loop
         RTS
 
+; Loads the eye right pixel data
+; Inputs:
+; A: each byte from the eye right byte data
+; Outputs:
+; 2E00 - 2E3F: each byte of the eye right byte data. One byte per address
 LOAD_EYE_RIGHT_DATA
         LDX #64
         LDY #00 
